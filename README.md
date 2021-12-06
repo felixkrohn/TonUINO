@@ -1,3 +1,20 @@
+# simple-player
+
+This is a fork of the TonUINO player by  Thorsten Voß (https://github.com/xfjx/TonUINO).
+It's meant to simplify interaction to the most basic functions, suitable for cognitively impaired:
+- put a card on the player: play from the start
+- remove the card: stop playing
+- put the same card on the player again: resume from last position
+- new card: play album from the start
+- stop playing at the end of the album
+- Volume handling will be done by a rotating knob in hardware
+- Buttons are only used for programming the player, but can be moved to a more invisible place inside or behind the player housing, in order to simplify handling by the device owner - programming the cards will be done by somebody else.
+- button #1 to #3 are for up/back, select, and down/forward respectively (to be used in admin menu)
+- button #4 can be used to access the Admin menu
+- optionally, button #5 can be exposed as a "skip" button. It will reset the device on a long press (>5s)
+- (speech files still need to be re-generated accordingly)
+
+
 # TonUINO
 Die DIY Musikbox (nicht nur) für Kinder
 
