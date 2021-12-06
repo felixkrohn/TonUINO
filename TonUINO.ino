@@ -15,13 +15,13 @@
 
     created by Thorsten Voß and licensed under GNU/GPL.
     Information and contribution at https://tonuino.de.
+    https://github.com/Makuna/DFMiniMp3/wiki/API-Reference
 */
-/*
- * button 1: select
- * button 2: up
- * button 3: down
- * button 4: admin menu
- * button 5: play next track, reset/reboot on long press
+/* button 1: black:  select
+ * button 2: yellow: up
+ * button 3: green:  down
+ * button 4: red:    admin menu
+ * button 5: white:  play next track, reset/reboot on long press
  * 
  * play mode: whole directory, remember last position as long as card is not changed
 */
@@ -76,7 +76,7 @@ unsigned long sleepAtMillis = 0;
 static uint16_t _lastTrackFinished;
 
 
-static void nextTrack(uint16_t track);
+static void nextTrack();
 uint8_t voiceMenu(int numberOfOptions, int startMessage, int messageOffset,
                   bool preview = false, int previewFromFolder = 0, int defaultValue = 0, bool exitWithLongPress = false);
 bool isPlaying();
@@ -103,10 +103,11 @@ class Mp3Notify {
       Serial.println(action);
     }
     static void OnPlayFinished(DfMp3_PlaySources source, uint16_t track) {
-      Serial.print("Track ended");
+      Serial.print("Track ended: #");
       Serial.println(track);
       delay(100);
-      nextTrack(track);
+//      nextTrack(track);
+      nextTrack();
     }
     static void OnPlaySourceOnline(DfMp3_PlaySources source) {
       PrintlnSourceAction(source, "online");
@@ -207,33 +208,30 @@ class Modifier {
 
 // Leider kann das Modul selbst keine Queue abspielen, daher müssen wir selbst die Queue verwalten
 //static uint16_t _lastTrackFinished;
-static void nextTrack(uint16_t track) {
-  Serial.println(track);
-
-  if (track == _lastTrackFinished) {
-    return;
-  }
-  _lastTrackFinished = track;
-
+static void nextTrack() {
   if (knownCard == false)
     // Wenn eine neue Karte angelernt wird soll das Ende eines Tracks nicht
     // verarbeitet werden
     return;
 
   Serial.println(F("=== nextTrack()"));
+  _lastTrackFinished = currentTrack;
 
   if (currentTrack != numTracksInFolder) {
     currentTrack = currentTrack + 1;
-    Serial.print(F("Hörbuch Modus ist aktiv -> nächster Track und "
-                   "Fortschritt speichern"));
+    Serial.print(F("Hörbuch Modus ist aktiv -> nächster Track und Fortschritt speichern: "));
     Serial.println(currentTrack);
     mp3.playFolderTrack(myFolder->folder, currentTrack);
     // Fortschritt im EEPROM abspeichern
     EEPROM.update(myFolder->folder, currentTrack);
   } else {
+    Serial.print(F("currentTrack == numTracksInFolder: end of playlist. Bye!"));
+    Serial.println(currentTrack);
     //      mp3.sleep();  // Je nach Modul kommt es nicht mehr zurück aus dem Sleep!
+    mp3.pause();
     // Fortschritt zurück setzen
-    EEPROM.update(myFolder->folder, 1);
+    currentTrack = 0;
+    EEPROM.update(myFolder->folder, 0);
     forgetLastCard=true;
   }
   delay(500);
@@ -249,7 +247,7 @@ static void previousTrack() {
   mp3.playFolderTrack(myFolder->folder, currentTrack);
   // Fortschritt im EEPROM abspeichern
   EEPROM.update(myFolder->folder, currentTrack);
-  delay(1000);
+  delay(200);
 }
 
 // MFRC522
@@ -263,17 +261,16 @@ byte blockAddr = 4;
 byte trailerBlock = 7;
 MFRC522::StatusCode status;
 
+#define LONG_PRESS 1000
+#define busyPin 4
+#define shutdownPin 7
+#define openAnalogPin A6
+
 #define buttonSelect A0
 #define buttonUp A1
 #define buttonDown A2
 #define buttonAdmin A3
 #define buttonSkip A4
-#define busyPin 4
-#define shutdownPin 7
-#define openAnalogPin A6
-
-#define LONG_PRESS 1000
-
 Button selectButton(buttonSelect);
 Button upButton(buttonUp);
 Button downButton(buttonDown);
@@ -331,16 +328,15 @@ void setup() {
   // DFPlayer Mini initialisieren
   Serial.println(F("mp3.begin();"));
   mp3.begin();
-  // Zwei Sekunden warten bis der DFPlayer Mini initialisiert ist
-  Serial.println(F(""));
+  // 200ms warten bis der DFPlayer Mini initialisiert ist
   Serial.println(F("delay 200ms"));
   delay(200);
 
   Serial.println(F("mp3.setVolume"));
-  mp3.setVolume(25);
+  mp3.setVolume(25); // max 30
 
   Serial.println(F("mp3.setEq = 0"));
-  mp3.setEq(0);
+  mp3.setEq(0); // Normal
 
   // NFC Leser initialisieren
   Serial.println(F("SPI.begin"));
@@ -371,7 +367,11 @@ void setup() {
     loadSettingsFromFlash();
   }
 }
-
+/* button 1: black:  select
+ * button 2: yellow: up
+ * button 3: green:  down
+ * button 4: red:    admin menu
+ * button 5: white:  play next track, reset/reboot on long press */
 void readButtons() {
   selectButton.read();
   upButton.read();
@@ -380,21 +380,23 @@ void readButtons() {
   skipButton.read();
 }
 
-void volumeUpButton() {
-  Serial.println(F("=== volumeUp()"));
+void volumeUpButtonAction() {
+  Serial.println(F("=== volumeUpButtonAction()"));
 }
 
-void volumeDownButton() {
-  Serial.println(F("=== volumeDown()"));
+void volumeDownButtonAction() {
+  Serial.println(F("=== volumeDownButtonAction()"));
 }
 void adminButtonAction() {
-  Serial.println(F("=== adminButton()"));
+  Serial.println(F("=== adminButtonAction()"));
 }
 void skipButtonAction() {
-  Serial.println(F("=== skipButton()"));
+  Serial.println(F("=== skipButtonAction()"));
+  nextTrack();
+  delay(1000);
 }
 void nextButton() {
-  nextTrack(random(65536));
+  nextTrack();
   delay(1000);
 }
 
@@ -569,10 +571,10 @@ void loop() {
     }
 
     if (upButton.wasReleased()) {
-      volumeUpButton();
+      volumeUpButtonAction();
     }
     if (downButton.wasReleased()) {
-      volumeDownButton();
+      volumeDownButtonAction();
     }
     if (adminButton.wasReleased()) {
       adminButtonAction();
